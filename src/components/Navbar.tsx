@@ -1,11 +1,13 @@
 import { useState } from "react";
-import { Menu, X } from "lucide-react";
+import { Menu, X, LogOut } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
 import SignInModal from "./SignInModal";
 import JoinModal from "./JoinModal";
 
 const navLinks = ["Home", "About", "Events", "MBTI Test", "Admin"];
 
 const Navbar = () => {
+  const { user, signOut } = useAuth();
   const [signInOpen, setSignInOpen] = useState(false);
   const [joinOpen, setJoinOpen] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -36,18 +38,35 @@ const Navbar = () => {
           </div>
 
           <div className="hidden md:flex items-center gap-3">
-            <button
-              onClick={() => setSignInOpen(true)}
-              className="px-5 py-2 text-sm font-medium rounded-full border border-primary text-primary hover:bg-primary/5 transition-colors duration-200"
-            >
-              Sign In
-            </button>
-            <button
-              onClick={() => setJoinOpen(true)}
-              className="px-5 py-2 text-sm font-medium rounded-full bg-primary text-primary-foreground hover:bg-primary/90 transition-colors duration-200"
-            >
-              Join Club
-            </button>
+            {user ? (
+              <>
+                <span className="text-sm text-muted-foreground">
+                  {user.user_metadata?.full_name || user.email}
+                </span>
+                <button
+                  onClick={signOut}
+                  className="inline-flex items-center gap-1 px-5 py-2 text-sm font-medium rounded-full border border-border text-foreground hover:bg-muted transition-colors duration-200"
+                >
+                  <LogOut size={14} />
+                  Sign Out
+                </button>
+              </>
+            ) : (
+              <>
+                <button
+                  onClick={() => setSignInOpen(true)}
+                  className="px-5 py-2 text-sm font-medium rounded-full border border-primary text-primary hover:bg-primary/5 transition-colors duration-200"
+                >
+                  Sign In
+                </button>
+                <button
+                  onClick={() => setJoinOpen(true)}
+                  className="px-5 py-2 text-sm font-medium rounded-full bg-primary text-primary-foreground hover:bg-primary/90 transition-colors duration-200"
+                >
+                  Join Club
+                </button>
+              </>
+            )}
           </div>
 
           <button className="md:hidden" onClick={() => setMobileOpen(!mobileOpen)}>
@@ -69,18 +88,29 @@ const Navbar = () => {
               </a>
             ))}
             <div className="flex gap-3 mt-3">
-              <button
-                onClick={() => { setSignInOpen(true); setMobileOpen(false); }}
-                className="flex-1 px-4 py-2 text-sm font-medium rounded-full border border-primary text-primary"
-              >
-                Sign In
-              </button>
-              <button
-                onClick={() => { setJoinOpen(true); setMobileOpen(false); }}
-                className="flex-1 px-4 py-2 text-sm font-medium rounded-full bg-primary text-primary-foreground"
-              >
-                Join Club
-              </button>
+              {user ? (
+                <button
+                  onClick={() => { signOut(); setMobileOpen(false); }}
+                  className="flex-1 px-4 py-2 text-sm font-medium rounded-full border border-border text-foreground"
+                >
+                  Sign Out
+                </button>
+              ) : (
+                <>
+                  <button
+                    onClick={() => { setSignInOpen(true); setMobileOpen(false); }}
+                    className="flex-1 px-4 py-2 text-sm font-medium rounded-full border border-primary text-primary"
+                  >
+                    Sign In
+                  </button>
+                  <button
+                    onClick={() => { setJoinOpen(true); setMobileOpen(false); }}
+                    className="flex-1 px-4 py-2 text-sm font-medium rounded-full bg-primary text-primary-foreground"
+                  >
+                    Join Club
+                  </button>
+                </>
+              )}
             </div>
           </div>
         )}
