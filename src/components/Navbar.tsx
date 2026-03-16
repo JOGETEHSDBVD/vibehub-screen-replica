@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Menu, X, LogOut } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import SignInModal from "./SignInModal";
@@ -8,9 +9,16 @@ const navLinks = ["Home", "About", "Events", "MBTI Test", "Admin"];
 
 const Navbar = () => {
   const { user, signOut } = useAuth();
+  const navigate = useNavigate();
   const [signInOpen, setSignInOpen] = useState(false);
   const [joinOpen, setJoinOpen] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+
+  const handleNavClick = (link: string) => {
+    if (link === "Admin") {
+      navigate("/admin");
+    }
+  };
 
   return (
     <>
@@ -28,9 +36,10 @@ const Navbar = () => {
               <a
                 key={link}
                 href="#"
+                onClick={(e) => { e.preventDefault(); handleNavClick(link); }}
                 className={`text-sm font-medium transition-colors duration-200 ${
                   link === "Home" ? "text-primary" : "text-foreground hover:text-primary"
-                }`}
+                } cursor-pointer`}
               >
                 {link}
               </a>
