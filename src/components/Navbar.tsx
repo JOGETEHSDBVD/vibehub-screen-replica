@@ -9,9 +9,16 @@ const navLinks = ["Home", "About", "Events", "MBTI Test", "Admin"];
 
 const Navbar = () => {
   const { user, signOut } = useAuth();
+  const navigate = useNavigate();
   const [signInOpen, setSignInOpen] = useState(false);
   const [joinOpen, setJoinOpen] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+
+  const handleNavClick = (link: string) => {
+    if (link === "Admin") {
+      navigate("/admin");
+    }
+  };
 
   return (
     <>
