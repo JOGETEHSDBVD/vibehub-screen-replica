@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -13,11 +14,12 @@ const SignInModal = ({ open, onOpenChange, onSwitchToJoin }: SignInModalProps) =
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const navigate = useNavigate();
 
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
     setLoading(false);
     if (error) {
       toast.error(error.message);
@@ -26,6 +28,16 @@ const SignInModal = ({ open, onOpenChange, onSwitchToJoin }: SignInModalProps) =
       onOpenChange(false);
       setEmail("");
       setPassword("");
+      // Check if user is admin and redirect
+      if (data.user) {
+        const { data: roleData } = await supabase.rpc("has_role", {
+          _user_id: data.user.id,
+          _role: "admin",
+        });
+        if (roleData) {
+          navigate("/admin");
+        }
+      }
     }
   };
 
