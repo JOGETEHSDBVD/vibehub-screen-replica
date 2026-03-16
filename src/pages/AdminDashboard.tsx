@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useAdminCheck } from "@/hooks/useAdminCheck";
+import { useAdminDashboardData } from "@/hooks/useAdminDashboardData";
 import {
   LayoutDashboard, Users, CalendarDays, BarChart3, Megaphone,
   Settings, LogOut, Download, PlusCircle, Search, MoreVertical,
@@ -13,6 +14,10 @@ import { Badge } from "@/components/ui/badge";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
+import AnnouncementModal from "@/components/admin/AnnouncementModal";
+import MessageAllModal from "@/components/admin/MessageAllModal";
+import InviteModal from "@/components/admin/InviteModal";
+import { toast } from "@/hooks/use-toast";
 
 const sidebarLinks = [
   { icon: LayoutDashboard, label: "Dashboard", active: true },
@@ -22,39 +27,48 @@ const sidebarLinks = [
   { icon: Megaphone, label: "Announcements" },
 ];
 
-const stats = [
-  { icon: Users, label: "Total Members", value: "1,240", change: "+12%", positive: true, bg: "bg-primary/10", iconColor: "text-primary" },
-  { icon: CalendarDays, label: "Active Events", value: "8", change: "Steady—", positive: null, bg: "bg-amber-50", iconColor: "text-amber-500" },
-  { icon: Zap, label: "Monthly Revenue", value: "$4,850", change: "+5.2%", positive: true, bg: "bg-purple-50", iconColor: "text-purple-500" },
-  { icon: Zap, label: "Engagement Rate", value: "68.4%", change: "-2%", positive: false, bg: "bg-purple-50", iconColor: "text-purple-500" },
-];
-
-const members = [
-  { name: "Sarah Jenkins", dept: "Entrepreneurship", status: "ACTIVE", joined: "Oct 12, 2023", avatar: "SJ" },
-  { name: "David Chen", dept: "Sports", status: "ACTIVE", joined: "Oct 10, 2023", avatar: "DC" },
-  { name: "Elena Rodriguez", dept: "Culture", status: "PENDING", joined: "Oct 09, 2023", avatar: "ER" },
-  { name: "Marcus Thorne", dept: "Sports", status: "ACTIVE", joined: "Oct 05, 2023", avatar: "MT" },
-];
-
-const quickActions = [
-  { icon: Megaphone, label: "Announce", bg: "bg-accent" },
-  { icon: Mail, label: "Message All", bg: "bg-accent" },
-  { icon: UserPlus, label: "Invite", bg: "bg-accent" },
-  { icon: FileText, label: "Invoices", bg: "bg-accent" },
-];
-
-const upcomingEvents = [
-  { month: "OCT", day: "24", title: "Startup Pitch Night", location: "Innovation Hall • 6:00 PM" },
-  { month: "OCT", day: "28", title: "Inter-Uni Basketball", location: "Sports Complex • 10:00 AM" },
-];
-
 const AdminDashboard = () => {
   const { user, signOut } = useAuth();
-  const { isAdmin, loading } = useAdminCheck();
+  const { isAdmin, loading: adminLoading } = useAdminCheck();
   const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
 
-  if (loading) {
+  const {
+    members, totalMembers, activeEvents, upcomingEvents,
+    loading: dataLoading, page, setPage, PAGE_SIZE, refetch,
+  } = useAdminDashboardData();
+
+  // Modals
+  const [announceOpen, setAnnounceOpen] = useState(false);
+  const [messageOpen, setMessageOpen] = useState(false);
+  const [inviteOpen, setInviteOpen] = useState(false);
+
+  // Debounced search
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(searchQuery), 300);
+    return () => clearTimeout(t);
+  }, [searchQuery]);
+
+  useEffect(() => {
+    refetch(debouncedSearch);
+  }, [debouncedSearch]);
+
+  const stats = [
+    { icon: Users, label: "Total Members", value: totalMembers.toLocaleString(), change: totalMembers > 0 ? "Active" : "—", positive: null, bg: "bg-primary/10", iconColor: "text-primary" },
+    { icon: CalendarDays, label: "Active Events", value: String(activeEvents), change: activeEvents > 0 ? "Ongoing" : "None yet", positive: null, bg: "bg-amber-50", iconColor: "text-amber-500" },
+    { icon: Zap, label: "Monthly Revenue", value: "$0", change: "Not tracked", positive: null, bg: "bg-purple-50", iconColor: "text-purple-500" },
+    { icon: Zap, label: "Engagement Rate", value: "0%", change: "No data yet", positive: null, bg: "bg-purple-50", iconColor: "text-purple-500" },
+  ];
+
+  const quickActions = [
+    { icon: Megaphone, label: "Announce", bg: "bg-accent", onClick: () => setAnnounceOpen(true) },
+    { icon: Mail, label: "Message All", bg: "bg-accent", onClick: () => setMessageOpen(true) },
+    { icon: UserPlus, label: "Invite", bg: "bg-accent", onClick: () => setInviteOpen(true) },
+    { icon: FileText, label: "Invoices", bg: "bg-accent", onClick: () => toast({ title: "Coming soon", description: "Invoices will be available in a future update." }) },
+  ];
+
+  if (adminLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-muted">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
@@ -74,6 +88,28 @@ const AdminDashboard = () => {
     );
   }
 
+  const totalPages = Math.ceil(totalMembers / PAGE_SIZE);
+  const hasPagination = totalMembers > PAGE_SIZE;
+
+  const formatDate = (iso: string) => {
+    const d = new Date(iso);
+    return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+  };
+
+  const formatEventDate = (iso: string) => {
+    const d = new Date(iso);
+    return {
+      month: d.toLocaleDateString("en-US", { month: "short" }).toUpperCase(),
+      day: String(d.getDate()),
+      time: d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }),
+    };
+  };
+
+  const getInitials = (name: string | null) => {
+    if (!name) return "?";
+    return name.split(" ").map((w) => w[0]).join("").toUpperCase().slice(0, 2);
+  };
+
   return (
     <div className="flex min-h-screen bg-muted/50 font-sans">
       {/* Sidebar */}
@@ -88,7 +124,6 @@ const AdminDashboard = () => {
               <div className="text-[11px] text-muted-foreground uppercase tracking-wider">Admin Panel</div>
             </div>
           </div>
-
           <nav className="mt-2 px-3 space-y-1">
             {sidebarLinks.map((link) => (
               <button
@@ -105,7 +140,6 @@ const AdminDashboard = () => {
             ))}
           </nav>
         </div>
-
         <div className="px-3 pb-4 space-y-2">
           <button className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground transition-colors">
             <Settings size={18} />
@@ -158,15 +192,7 @@ const AdminDashboard = () => {
                 <div className={`w-10 h-10 ${stat.bg} rounded-lg flex items-center justify-center`}>
                   <stat.icon size={20} className={stat.iconColor} />
                 </div>
-                {stat.positive !== null && (
-                  <span className={`text-xs font-medium ${stat.positive ? "text-green-500" : "text-red-500"}`}>
-                    {stat.change}
-                    <span className="ml-0.5">↗</span>
-                  </span>
-                )}
-                {stat.positive === null && (
-                  <span className="text-xs font-medium text-muted-foreground">{stat.change}</span>
-                )}
+                <span className="text-xs font-medium text-muted-foreground">{stat.change}</span>
               </div>
               <div className="mt-3">
                 <div className="text-sm text-muted-foreground">{stat.label}</div>
@@ -203,45 +229,69 @@ const AdminDashboard = () => {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {members.map((member) => (
-                  <TableRow key={member.name}>
-                    <TableCell>
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center text-xs font-bold text-primary">
-                          {member.avatar}
-                        </div>
-                        <span className="font-medium text-foreground">{member.name}</span>
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-muted-foreground">{member.dept}</TableCell>
-                    <TableCell>
-                      <Badge
-                        variant={member.status === "ACTIVE" ? "default" : "secondary"}
-                        className={`text-[10px] font-semibold ${
-                          member.status === "ACTIVE"
-                            ? "bg-primary/15 text-primary hover:bg-primary/20 border-0"
-                            : "bg-amber-100 text-amber-700 hover:bg-amber-100 border-0"
-                        }`}
-                      >
-                        {member.status}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-muted-foreground">{member.joined}</TableCell>
-                    <TableCell>
-                      <button className="text-muted-foreground hover:text-foreground">
-                        <MoreVertical size={16} />
-                      </button>
-                    </TableCell>
+                {dataLoading ? (
+                  <TableRow>
+                    <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">Loading…</TableCell>
                   </TableRow>
-                ))}
+                ) : members.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">No members found.</TableCell>
+                  </TableRow>
+                ) : (
+                  members.map((member) => (
+                    <TableRow key={member.id} className={member.isAdmin ? "bg-primary/5" : ""}>
+                      <TableCell>
+                        <div className="flex items-center gap-3">
+                          <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold ${
+                            member.isAdmin ? "bg-primary text-primary-foreground" : "bg-primary/20 text-primary"
+                          }`}>
+                            {getInitials(member.full_name)}
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium text-foreground">{member.full_name || "Unnamed"}</span>
+                            {member.isAdmin && (
+                              <Badge className="bg-primary/15 text-primary hover:bg-primary/20 border-0 text-[10px] font-semibold">
+                                ADMIN
+                              </Badge>
+                            )}
+                          </div>
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">
+                        {member.isAdmin ? "Administration" : "Member"}
+                      </TableCell>
+                      <TableCell>
+                        <Badge
+                          className="bg-primary/15 text-primary hover:bg-primary/20 border-0 text-[10px] font-semibold"
+                        >
+                          ACTIVE
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">{formatDate(member.created_at)}</TableCell>
+                      <TableCell>
+                        <button className="text-muted-foreground hover:text-foreground">
+                          <MoreVertical size={16} />
+                        </button>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
               </TableBody>
             </Table>
             <div className="flex items-center justify-between p-4 border-t border-border">
-              <span className="text-sm text-muted-foreground">Showing 4 of 1,240 members</span>
-              <div className="flex gap-2">
-                <Button variant="outline" size="sm">Previous</Button>
-                <Button size="sm" className="bg-primary text-primary-foreground hover:bg-primary/90">Next</Button>
-              </div>
+              <span className="text-sm text-muted-foreground">
+                Showing {members.length} of {totalMembers.toLocaleString()} members
+              </span>
+              {hasPagination && (
+                <div className="flex gap-2">
+                  <Button variant="outline" size="sm" disabled={page === 0} onClick={() => setPage(page - 1)}>
+                    Previous
+                  </Button>
+                  <Button size="sm" className="bg-primary text-primary-foreground hover:bg-primary/90" disabled={page >= totalPages - 1} onClick={() => setPage(page + 1)}>
+                    Next
+                  </Button>
+                </div>
+              )}
             </div>
           </div>
 
@@ -254,6 +304,7 @@ const AdminDashboard = () => {
                 {quickActions.map((action) => (
                   <button
                     key={action.label}
+                    onClick={action.onClick}
                     className={`${action.bg} rounded-xl p-4 flex flex-col items-center gap-2 hover:opacity-80 transition-opacity`}
                   >
                     <action.icon size={22} className="text-primary" />
@@ -267,26 +318,37 @@ const AdminDashboard = () => {
             <div className="bg-background rounded-xl border border-border p-5">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-lg font-bold text-foreground font-sans">Upcoming Events</h3>
-                <button className="text-xs font-medium text-primary hover:underline">View all</button>
               </div>
-              <div className="space-y-4">
-                {upcomingEvents.map((event) => (
-                  <div key={event.title} className="flex items-center gap-3">
-                    <div className="w-12 h-14 bg-destructive/10 rounded-lg flex flex-col items-center justify-center">
-                      <span className="text-[10px] font-bold text-destructive uppercase">{event.month}</span>
-                      <span className="text-lg font-bold text-destructive leading-tight">{event.day}</span>
-                    </div>
-                    <div>
-                      <div className="text-sm font-semibold text-foreground">{event.title}</div>
-                      <div className="text-xs text-muted-foreground">{event.location}</div>
-                    </div>
-                  </div>
-                ))}
-              </div>
+              {upcomingEvents.length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-4">No upcoming events yet.</p>
+              ) : (
+                <div className="space-y-4">
+                  {upcomingEvents.map((event) => {
+                    const { month, day, time } = formatEventDate(event.date);
+                    return (
+                      <div key={event.id} className="flex items-center gap-3">
+                        <div className="w-12 h-14 bg-destructive/10 rounded-lg flex flex-col items-center justify-center">
+                          <span className="text-[10px] font-bold text-destructive uppercase">{month}</span>
+                          <span className="text-lg font-bold text-destructive leading-tight">{day}</span>
+                        </div>
+                        <div>
+                          <div className="text-sm font-semibold text-foreground">{event.title}</div>
+                          <div className="text-xs text-muted-foreground">{event.location ?? "TBD"} • {time}</div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           </div>
         </div>
       </main>
+
+      {/* Modals */}
+      <AnnouncementModal open={announceOpen} onOpenChange={setAnnounceOpen} />
+      <MessageAllModal open={messageOpen} onOpenChange={setMessageOpen} />
+      <InviteModal open={inviteOpen} onOpenChange={setInviteOpen} />
     </div>
   );
 };
