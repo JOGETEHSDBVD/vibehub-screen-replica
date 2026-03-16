@@ -36,9 +36,10 @@ const Navbar = () => {
               <a
                 key={link}
                 href="#"
+                onClick={(e) => { e.preventDefault(); handleNavClick(link); }}
                 className={`text-sm font-medium transition-colors duration-200 ${
                   link === "Home" ? "text-primary" : "text-foreground hover:text-primary"
-                }`}
+                } cursor-pointer`}
               >
                 {link}
               </a>
